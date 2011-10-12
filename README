@@ -1,0 +1,1 @@
+application to handle people, organizations and contacts. LDAP backend. Objects properties automagically set via schema parsing.
