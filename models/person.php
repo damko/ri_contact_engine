@@ -11,6 +11,7 @@ class Person extends ObjectCommon
 		//$this->load->config('person');
 		$this->conf = $this->config->item('person');
 		$this->baseDn = $this->conf['baseDn'];
+		$this->obj = 'person';
 
 		// Get the class Person properties reading them from the LDAP schema
 		$this->loadAttrs($this->conf['objectClass']);
@@ -20,11 +21,6 @@ class Person extends ObjectCommon
 
 	public function __destruct() {
 		parent::__destruct();
-	}
-	
-	public function delme()
-	{
-		return 'ciao';
 	}
 	
 	// ================================= CRUD ================================
@@ -69,7 +65,13 @@ class Person extends ObjectCommon
 		$dn = 'uid='.$this->getUid().','.$this->baseDn;
 		if(empty($this->objectClass)) $this->objectClass = $this->conf['objectClass'];
 		
-		return $this->ri_ldap->CEcreate($dn,$this->toRest(false)) ? $this->getUid() : false;
+		//return $this->ri_ldap->CEcreate($dn,$this->toRest(false)) ? $this->getUid() : false;
+		if($this->ri_ldap->CEcreate($dn,$this->toRest(false)))
+		{
+			return $this->getUid();
+		} else {
+			return false;
+		}
 	}
 	
 	/**
@@ -80,6 +82,8 @@ class Person extends ObjectCommon
 	 */
 	public function read(array $input)
 	{	
+		$return = array();
+		
 		extract(&$input,$extract_type = EXTR_OVERWRITE);
 		
 		if(!empty($input['filter'])) 
@@ -89,6 +93,14 @@ class Person extends ObjectCommon
 			if(!empty($input['uid'])) $filter = '(uid='.$input['uid'].')';
 			if(!empty($input['dbId'])) $filter = '(dbId='.$input['dbId'].')';
 		}
+		
+		//checks
+		if(empty($filter))
+		{
+			$return['error'] = 'Method "'.__FUNCTION__.'" requires a filter in input';
+			return $return;
+		}
+		 		
 		
 		$wanted_attributes = array();
 		if(!empty($input['attributes']) and is_array($input['attributes'])) 
@@ -104,29 +116,8 @@ class Person extends ObjectCommon
 		isset($input['wanted_page']) ? $wanted_page = $input['wanted_page'] : $wanted_page = NULL;
 		isset($input['items_page']) ? $items_page = $input['items_page']  : $items_page = NULL;
 		
-		//checks
-		if(empty($filter)) return false;		
-		
-		//perform the search
-		$ldap_result = $this->ri_ldap->CEsearch($this->baseDn, $filter, $wanted_attributes, 0, null, $sort_by,  $flow_order, $wanted_page, $items_page);
-		
-		//saving and removing info about the ldap query
-		$info = array_pop($ldap_result);
-		
-		//removing the count item
-		unset($ldap_result['count']);
-		
-		$output = array();
-		foreach ($ldap_result as $ldap_item) {
-			//TODO probably it would be wiser to return the whole result without parsing everysingle entry. Don't know yet
-			$this->bindLdapValuesWithClassProperties($ldap_item);
-			$output[] = $this->toRest($empty_fields);
-		}
-		
-		//adding saved info about the ldap query
-		if(count($output)>0) $output[] = $info;
-			
-		return $output;
+				
+		return parent::read($input, $filter, $wanted_attributes, $sort_by, $flow_order, $wanted_page, $items_page);
 	}
 	
 	/**
@@ -162,7 +153,12 @@ class Person extends ObjectCommon
 	 */
 	public function delete(array $input)
 	{
-		if(empty($input['uid'])) return false;
+		if(empty($input['uid'])) 
+		{
+			$data = array();
+			$data['error'] = 'A valid uid is required to perform a delete'; 
+			return $data;
+		}
 		$dn = 'uid='.$input['uid'].','.$this->baseDn;
 		return $this->ri_ldap->CEdelete($dn);
 	}
@@ -175,8 +171,17 @@ class Person extends ObjectCommon
 	}
 	
 	public function associate(array $input) {
-		if(empty($input['to'])) return false;
-		if(empty($input['uid'])) return false;
+		if(empty($input['to'])) 
+		{
+			$data = array();
+			$data['error'] = 'Missing input "to". Possible values: organization, location';
+		}
+		
+		if(empty($input['uid'])) 
+		{
+			$data = array();
+			$data['error'] = 'Missing input "uid".';
+		}
 		
 		//we need to get a precise person not a set of people
 		unset($input['filter']);
