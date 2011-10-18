@@ -73,7 +73,6 @@ class Person extends ObjectCommon
 			return false;
 		}
 		
-		//delme
 	}
 	
 	/**
