@@ -5,9 +5,7 @@ class Ce {
 	private $other_sub_attrs = array('single-value','desc','no-user-modification','max-length');
 	
 	public function __construct() {
-		//$CI =& get_instance();
-		//$CI->load->model('ldap');		
-		//$CI->load->model('ri_ldap');		
+	
 	}
 	
 	public function __destruct() {
@@ -101,12 +99,23 @@ class Ce {
 			}
 		}
 		$xml->appendChild($xml_class);
-		$dest = APPPATH.'xml/'.$object_class.'.xml';
+		
+		$dest = APPPATH.'xml/';
+		if(!is_dir($dest))
+		{
+			if(!mkdir($dest))
+			{
+				log_message('debug', 'The directory '.$dest.' can not be created on the filesystem. Please check folder permissions.');
+				return false; 
+			}
+		}
 
 		//Benchmark
 		//$this->benchmark->mark('code_end');
 		//echo $this->benchmark->elapsed_time('code_start', 'code_end');
 		
+		//write the xml file
+		$dest = APPPATH.'xml/'.$object_class.'.xml';
 		return $xml->save($dest) ? TRUE : FALSE;		
 	}	
 	

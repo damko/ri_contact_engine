@@ -8,14 +8,13 @@ class Person extends ObjectCommon
 		parent::__construct();
 		
 		// Person configuration
-		//$this->load->config('person');
 		$this->conf = $this->config->item('person');
 		$this->baseDn = $this->conf['baseDn'];
-		$this->obj = 'person';
 
 		// Get the class Person properties reading them from the LDAP schema
 		$this->loadAttrs($this->conf['objectClass']);
-				
+		$this->obj = 'person';
+		
 		log_message('debug', 'Person class has been loaded');
 	}
 
@@ -72,7 +71,6 @@ class Person extends ObjectCommon
 		} else {
 			return false;
 		}
-		
 	}
 	
 	/**
@@ -85,7 +83,7 @@ class Person extends ObjectCommon
 	{	
 		$return = array();
 		
-		extract(&$input,$extract_type = EXTR_OVERWRITE);
+		//extract(&$input,$extract_type = EXTR_OVERWRITE); //FIXME why this doesn't work at all?
 		
 		if(!empty($input['filter'])) 
 		{
@@ -95,30 +93,7 @@ class Person extends ObjectCommon
 			if(!empty($input['dbId'])) $filter = '(dbId='.$input['dbId'].')';
 		}
 		
-		//checks
-		if(empty($filter))
-		{
-			$return['error'] = 'Method "'.__FUNCTION__.'" requires a filter in input';
-			return $return;
-		}
-		 		
-		
-		$wanted_attributes = array();
-		if(!empty($input['attributes']) and is_array($input['attributes'])) 
-		{
-			$wanted_attributes = $input['attributes'];
-		} 
-		
-		//defaults
-		//who wants empty_fields in return has to specify it otherwise they will be skipped
-		isset($input['empty_fields']) ? $empty_fields = $input['empty_fields'] : $empty_fields = FALSE;
-		isset($input['sort_by']) ? $sort_by = $input['sort_by'] : $sort_by = NULL; //$sort_by = array('sn');
-		isset($input['flow_order']) ? $flow_order = $input['flow_order'] : $flow_order = 'asc';
-		isset($input['wanted_page']) ? $wanted_page = $input['wanted_page'] : $wanted_page = NULL;
-		isset($input['items_page']) ? $items_page = $input['items_page']  : $items_page = NULL;
-		
-				
-		return parent::read($input, $filter, $wanted_attributes, $sort_by, $flow_order, $wanted_page, $items_page);
+		return parent::read($input); //, $filter, $wanted_attributes, $sort_by, $flow_order, $wanted_page, $items_page);
 	}
 	
 	/**
@@ -225,50 +200,6 @@ class Person extends ObjectCommon
 		unset($entry['uid']); //never mess with the id during an update cause it has to do with dn		
 		return $this->ri_ldap->CEupdate($dn,$entry) ? $this->getUid() : false;
 	}
-		
-	// ===================== EXAMPLES ===============================
-	
-	/**
-	 * 
-	 * A method meant to be used by the developer to try how it works
-	 * @param array $input
-	 */
-	public function exampleGetInfo(array $input)
-	{
-		if(empty($input['id'])) return FALSE;
-
-		$persons = array();
-		$persons[] = array(
-				'first_name' => 'John',
-				'last_name' => 'Doe',
-				'member_id' => '123435');
-
-		$persons[] = array(
-				'first_name' => 'Robert',
-				'last_name' => 'Doe',
-				'member_id' => '123435');
-
-		if(isset($persons[$input['id']])) return $persons[$input['id']];
-
-		return 'person not found';
-	}	
-	
-	/**
-	 * 
-	 * A method meant to be used by the developer to try how it works
-	 */
-	public function exampleSearchPersons() {
-		$persons[] = array(
-				'first_name' => 'John',
-				'last_name' => 'Doe',
-				'member_id' => '123435');
-
-		$persons[] = array(
-				'first_name' => 'Robert',
-				'last_name' => 'Doe',
-				'member_id' => '123435');
-		return $persons;
-	}	
 }
 
 /* End of person.php */
