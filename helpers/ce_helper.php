@@ -3,11 +3,11 @@
 
 function pagination_setup($input)
 {
-	log_message('debug','Ce_helper has been loaded');
+	/* log_message('debug','Ce_helper has been loaded'); */
 	
 	$return = array();
 	
-	if(isset($input['filter'])) $return['filter'] = $input['filter'];
+	//if(isset($input['filter'])) $return['filter'] = $input['filter']; //NOT NEEDED
 	
 	//who wants empty_fields in return has to specify it otherwise they will be skipped
 	isset($input['empty_fields']) ? $return['empty_fields'] = $input['empty_fields'] : $return['empty_fields'] = FALSE;

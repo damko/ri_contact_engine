@@ -11,6 +11,8 @@ class Location extends ObjectCommon
 		$this->load->config('location');
 		$this->conf = $this->config->item('location');
 		$this->baseDn = $this->conf['baseDn'];
+		$this->objName = 'location';
+		
 
 		// Get the class Location properties reading them from the LDAP schema
 		$this->loadAttrs($this->conf['objectClass']);
@@ -22,7 +24,6 @@ class Location extends ObjectCommon
 		parent::__destruct();
 	}
 
-	
 	// ================================= CRUD ================================
 	
 	private function set_locId()
@@ -47,93 +48,151 @@ class Location extends ObjectCommon
 		return true;
 	}
 		
-	private function getLocId()
-	{
-		return !empty($this->locId['0']) ? $this->locId['0'] : FALSE;
-	}
-		
 	public function create(array $input)
 	{
-		if(!$this->set_locId()) return false;
+		extract($input);
+		if(isset($ce_key)) $this->set_baseDn($ce_key);
+		
+		if(!$this->set_locId())
+		{
+			$this->result = new Ce_Return_Object();
+			$this->result->data = array();
+			$this->result->status_code = '500';
+			$this->result->message = 'I can not set a unique dn for the new '.$this->objName.' entry.';
+		
+			return $this->result->returnAsArray();
+		}
+		
 		$input['locId'] = $this->locId;
 		
-		if(!$this->bindLdapValuesWithClassProperties($input,true)) return false;
+		if(!$this->bindDataWithClassProperties($input,true))  return $this->result->returnAsArray();
 		
 		//save the entry on the LDAP server
 		$dn = 'locId='.$this->locId.','.$this->baseDn;
 		if(empty($this->objectClass)) $this->objectClass = $this->conf['objectClass'];
-		return $this->ri_ldap->CEcreate($dn,$this->toRest(false)) ? $this->locId : false;
+		
+		//$entry = $this->toRest(false); //TODO delme
+		$exit_status = $this->ri_ldap->CEcreate($this->toRest(false),$dn);
+		
+		$this->result->importLdapReturnObject($this->ri_ldap->result);
+
+		if($exit_status) 
+		{
+			$this->result->pushData(array('locId' => $this->locId));
+			$return = $this->result->returnAsArray();
+			
+			//get geolocation
+			if($this->getLatitudeLongitude())
+			{
+				$entry = array();
+				$entry['locLatitude'] = $this->locLatitude;
+				$entry['locLongitude'] = $this->locLongitude;
+			
+				$this->ri_ldap->CEupdate($entry, $dn);
+			}
+				
+		}
+		
+		return $return;
 	}
 	
 	public function read(array $input)
-	{	
-		if(!empty($input['filter'])) 
+	{			
+		extract($input);
+		if(isset($ce_key)) $this->set_baseDn($ce_key);
+		
+		if(!empty($input['filter']))
 		{
 			$filter = $input['filter'];
 		} else {
 			if(!empty($input['locId'])) $filter = '(locId='.$input['locId'].')';
-			if(!empty($input['dbId'])) $filter = '(dbId='.$input['dbId'].')';
 		}
 		
-// 		$wanted_attributes = array();
-// 		if(!empty($input['attributes']) and is_array($input['attributes'])) 
-// 		{
-// 			$wanted_attributes = $input['attributes'];
-// 		} 
+		$output = array();
+		if(isset($filter)) $output['filter'] = $filter;
+		if(isset($wanted_attributes)) $output['wanted_attributes'] = $wanted_attributes;
+		if(isset($sort_by)) $output['sort_by'] = $sort_by;
+		if(isset($flow_order)) $output['flow_order'] = $flow_order;
+		if(isset($wanted_page)) $output['wanted_page'] = $wanted_page;
+		if(isset($items_page)) $output['items_page'] = $items_page;
 		
-		//TODO why this switch?
-		switch ($input['emptyfields']) {
-			case true:
-				$empty_fields = TRUE;
-			break;
-			
-			case false:
-				$empty_fields = FALSE;
-			break;
-						
-			default:
-				$empty_fields = TRUE;
-			break;
-		}		
+		return parent::read($output);
 		
-		//if(empty($filter)) return false;
-		
-		return parent::read($input); //, $filter, $wanted_attributes, $sort_by, $flow_order, $wanted_page, $items_page);		
 	}
 
-	public function update(array $input)
+
+	/**
+	 * Updates the entry to what specified in the $input array: basically the $input array represents the whole entry.
+	 * All the attributes not specified in the $input array will be erased unless they are mandatory
+	 * Add item 'force_geo_values' in the $input array to skip geolocation
+	 * @access		public
+	 * @param		array $input
+	 * @return		array
+	 */
+	public function update(array $input = null)
 	{
-		//FIXME This method is fragile atm. It requires more attention. For ex. what happens if I try to change the locId or the dn or the objectClass?
+		if(count($input) == 0 || !isset($input['locId'])) {
+			$this->result = new Ce_Return_Object();
+			$this->result->data = array();
+			$this->result->status_code = '415';
+			$this->result->message = 'A valid array is required to update a '.$this->objName.' entry.';
+	
+			return $this->result->returnAsArray();
+		}
+	
+		if(!isset($input['force_geo_values']) || $input['force_geo_values'] == false){
+			if(isset($input['locLatitude'])) unset($input['locLatitude']);
+			if(isset($input['locLongitude'])) unset($input['locLongitude']);
+		}
 		
-		if(empty($input['locId'])) return false;
-
-		//TODO Should I perform a search over the given locId to be sure the contact exists?
-		//unset($input['filter']);
-		//$this->read($input);
+		if($exit_status = parent::update($input)){
+			
+			$return = $this->result->returnAsArray();
+			
+			//get geolocation
+			if(!isset($input['force_geo_values']) || $input['force_geo_values'] == false){
+				if($this->getLatitudeLongitude())
+				{
+					$entry = array();
+					$entry['locLatitude'] = $this->locLatitude;
+					$entry['locLongitude'] = $this->locLongitude;
+				
+					$this->ri_ldap->CEupdate($entry, $dn);
+				}
+			}		
+		}
 		
-		if(!$this->bindLdapValuesWithClassProperties($input, false, true)) return false;
-		
-		if(empty($this->locLatitude) or empty($this->locLongitude)) $this->getLatitudeLongitude();
-		
-		//save the entry on the LDAP server
-		$dn = 'locId='.$this->getLocId().','.$this->baseDn;
-		$entry = $this->toRest(false);
-		unset($entry['locId']); //never mess with the id during an update cause it has to do with dn
-		return $this->ri_ldap->CEupdate($dn,$entry) ? $this->locId : false;
-	}
-
+		return $return;
+	}	
+	
 	public function delete($input)
 	{
-		if(empty($input['locId'])) return false;
-		$dn = 'locId='.$input['locId'].','.$this->baseDn;
-		return $this->ri_ldap->CEdelete($dn);
-	}
+		
+		extract($input);
+		if(isset($ce_key)) $this->set_baseDn($ce_key);
+		
+		if(!is_array($input) || empty($input['locId']))
+		{
+			$this->result = new Ce_Return_Object();
+			$this->result->data = array();
+			$this->result->status_code = '415';
+			$this->result->message = 'A valid locId is required to delete a '.$this->objName.' entry.';
 	
+			return $this->result->returnAsArray();
+		}
+	
+		$dn = 'locId='.$input['locId'].','.$this->baseDn;
+	
+		return parent::delete($dn);
+	}
+		
 	private function getLatitudeLongitude()
 	{	
 		//a bit of validation
 		if(empty($this->locStreet)) return false;
 		if(empty($this->locCity)) return false;
+		if(empty($this->locState)) return false;
+		if(empty($this->locCountry)) return false;
 		
 		//that's the yahoo placefinder application ID
 		$appId='dj0yJmk9eUVJNWFjNFhxRll3JmQ9WVdrOVRuQkdaa1J5TjJrbWNHbzlOalF6TmpFNE1UWXkmcz1jb25zdW1lcnNlY3JldCZ4PTY5';
@@ -149,11 +208,14 @@ class Location extends ObjectCommon
 	
 		//makes the request to yahoo
 		$xml=simplexml_load_file($search,"SimpleXMLElement",LIBXML_NOCDATA);
-		if ($xml->Result->quality > 60 && $xml->Error==0)
+		if ($xml->Result->quality >= 60 && $xml->Error==0)
 		{
 			$this->locLatitude = (string) $xml->Result->latitude;
 			$this->locLongitude = (string) $xml->Result->longitude;
+			return true;
 		}
+		
+		return false;
 	}	
 }
 
